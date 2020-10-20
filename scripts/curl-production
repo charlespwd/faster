@@ -1,0 +1,8 @@
+#!/bin/bash
+
+host="${SITE}"
+curl -s \
+  -H "x-host: $host" \
+  -H 'accept: text/html' \
+  "$@" \
+  https://fast.cpclermont.workers.dev

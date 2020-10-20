@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Faster</title>
+    <style>
+      * {
+        font-family: monospace;
+      }
+
+      main {
+        margin: 0 auto;
+        max-width: 80ex;
+      }
+
+      header > p {
+        margin-top: -1em;
+        font-style: italic;
+      }
+
+      ul {
+        padding: 0 0 0 2ex;
+      }
+
+      li code {
+        font-weight: bold;
+      }
+
+      li > code {
+        background-color: lightgray;
+        border-radius: 0.25ex;
+        padding: 1px 5px;
+      }
+
+      li:not(:last-child) {
+        padding-bottom: 1em;
+      }
+
+      input[type='checkbox'] {
+        width: 3ex;
+      }
+
+      input[type='text'],
+      textarea {
+        width: 100%;
+      }
+
+      form > div > label {
+        font-weight: bold;
+      }
+
+      form > div > div {
+        padding-left: 4ex;
+      }
+
+      textarea[disabled] {
+        margin-top: 2ex;
+        background-color: lightgray;
+        border-radius: 0.25ex;
+        font-weight: bold;
+        color: #333;
+      }
+
+      textarea:invalid {
+        border-color: red;
+        background-color: red;
+      }
+
+      .screen-reader {
+        border: 0;
+        clip: rect(0 0 0 0);
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        padding: 0;
+        position: absolute;
+        white-space: nowrap;
+        width: 1px;
+      }
+
+      footer {
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Faster</h1>
+        <p>A Cloudflare Worker that makes pages faster</p>
+      </header>
+      <section>
+        <p>Why, hello there!</p>
+        <p>
+          Use this worker with
+          <a href="//webpagetest.org">WebPageTest</a>
+          to measure the impact of small changes on your site speed.
+        </p>
+      </section>
+      <section>
+        <h2>How to use</h2>
+        <p>
+          Fill out the form below and get a script to copy paste into
+          WebPageTest's script panel.
+        </p>
+        <form>
+          <div>
+            <label>Test URL: <input type="text" name="url" /></label>
+          </div>
+          <div>
+            <label
+              ><input
+                type="checkbox"
+                name="x-bypass-transform"
+              />x-bypass-transform</label
+            >
+          </div>
+          <div>
+            <label><input type="checkbox" name="link" />x-link</label>
+            <div>
+              <textarea
+                name="x-link"
+                placeholder="<https://cdn.shopify.com>; rel=preconnect"
+              ></textarea>
+            </div>
+          </div>
+          <div>
+            <label><input type="checkbox" name="async" />x-async</label>
+            <div>
+              <label class="screen-reader" for="x-async">selector:</label>
+              <input
+                type="text"
+                id="x-async"
+                name="x-async"
+                placeholder="head > script:not([async]):not([defer])"
+              />
+            </div>
+          </div>
+          <div>
+            <label><input type="checkbox" name="defer" />x-defer</label>
+            <div>
+              <label class="screen-reader" for="x-defer">selector:</label>
+              <input
+                type="text"
+                id="x-defer"
+                name="x-defer"
+                placeholder="head > script:not([defer]):not([defer])"
+              />
+            </div>
+          </div>
+          <div>
+            <label><input type="checkbox" name="x-push" />x-push</label>
+          </div>
+          <div>
+            <label
+              ><input
+                type="checkbox"
+                name="x-no-async-hide"
+              />x-no-async-hide</label
+            >
+          </div>
+          <textarea id="wpt-script" disabled rows="7"></textarea>
+        </form>
+      </section>
+      <section>
+        <h2>Reference</h2>
+        <p>This Cloudflare worker responds to the following HTTP headers:</p>
+        <ul>
+          <li>
+            <code>x-bypass-transform: &lt;bool&gt;</code>
+            <p>
+              When set to true, the worker proxies the host but does nothing
+              else. Good for `control` tests.
+            </p>
+            <p>
+              @example:
+              <code>X-Bypass-Transform: true</code>
+            </p>
+          </li>
+          <li>
+            <code>x-link: &lt;Link&gt;</code>
+            <p>
+              When set, the worker will set the Response's Link HTTP header to
+              &lt;Link&gt;.
+            </p>
+            <p>
+              @example:
+              <code>X-Link: &lt;cdn.shopify.com&gt;; rel=preconnect</code>
+            </p>
+          </li>
+          <li>
+            <code>x-async: &lt;cssSelector&gt;</code>
+            <p>
+              When set, the worker will add the `async` attribute to all scripts
+              targeted by the cssSelector.
+            </p>
+            <p>
+              @example:<br />
+              <code>X-Async: head &gt; script:not([async]):not([defer])</code>
+            </p>
+          </li>
+          <li>
+            <code>x-defer: &lt;cssSelector&gt;</code>
+            <p>
+              When set, the worker will add the `defer` attribute to all scripts
+              targeted by the cssSelector.
+            </p>
+            <p>
+              @example:<br />
+              <code>X-Defer: head &gt; script:not([async]):not([defer])</code>
+            </p>
+          </li>
+          <li>
+            <code>x-push: &lt;bool&gt;</code>
+            <p>
+              When set, the worker will push a 200 OK with HTTP headers before
+              the proxied requests is received.
+            </p>
+            <p>
+              Depending on how long your TTFB is, this could be leveraged to
+              preload/preconnect resources while we're waiting for the server to
+              respond.
+            </p>
+            <p>
+              @example:
+              <code>X-Push: true</code>
+            </p>
+          </li>
+          <li>
+            <code>x-no-async-hide: &lt;bool&gt;</code>
+            <p>
+              When set to true, the worker will disable
+              <a href="https://developers.google.com/optimize/"
+                >Google Optimize's anti-flicker snippet</a
+              >.
+            </p>
+            <p>
+              @example:
+              <code>X-No-Async-Hide: true</code>
+            </p>
+          </li>
+        </ul>
+      </section>
+      <footer>by <a href="//twitter.com/cpclermont">@cpclermont</a></footer>
+      <script>
+        const area = document.getElementById('wpt-script')
+        const inputs = [
+          ...document.querySelectorAll('form input:not([type=button]'),
+          ...document.querySelectorAll('form textarea:not([disabled])'),
+        ]
+
+        const elements = inputs.reduce((acc, input) => {
+          acc[input.name] = input
+          return acc
+        }, {})
+
+        const getInputValue = (input) => {
+          if (input.type === 'checkbox') return input.checked
+          return input.value.replace(/\n/g, ', ').replace(/,,/g, ',')
+        }
+
+        const getHeaderKeyValue = (name) /*: [k, v] | null */ => {
+          const input = elements[name]
+          const value = getInputValue(input)
+          const checkboxName = name.replace(/^x-/, '')
+
+          if (checkboxName in elements) {
+            const isEnabled = getInputValue(elements[checkboxName])
+            return isEnabled && value ? [name, value] : null
+          }
+
+          return value ? [name, 'true'] : null
+        }
+
+        const isLinkHeaderValid = (linkHeader) =>
+          !linkHeader || /^(<https?:\/\/[^>]+>(;\s?\w+(=\w+)?)+(,\s)*)+$/.test(linkHeader)
+
+        const debounce = (fn, ms) => {
+          let timeoutId;
+          return (...args) => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+              fn(...args);
+            }, ms);
+          }
+        }
+
+        const xLinkInput = elements['x-link'];
+
+        const validateLinkHeader = () => {
+          const input = xLinkInput;
+          const isValid = isLinkHeaderValid(getInputValue(input));
+          if (isValid) {
+            input.setCustomValidity('');
+            input.reportValidity();
+          } else {
+            input.setCustomValidity(
+`Looks like there's an error in your HTTP header. Expecting semi-colons between attributes, new lines between links, and https:// in your URL`)
+            input.reportValidity();
+          }
+        }
+
+        xLinkInput.addEventListener('input', debounce(validateLinkHeader, 1000));
+        validateLinkHeader();
+
+        const watchNewLine = () => {
+          xLinkInput.rows = xLinkInput.value.split('\n').length + 1;
+        }
+
+        xLinkInput.addEventListener('input', watchNewLine);
+        watchNewLine();
+
+        const getScriptValue = () => {
+          const headers = Object.keys(elements)
+            .filter((x) => /^x-/.test(x))
+            .map(getHeaderKeyValue)
+            .filter(Boolean)
+            .map(([header, value]) => `setHeader ${header}: ${value}`)
+            .join('\n')
+          const url = new URL(elements.url.value)
+          return [
+            `overrideHost ${url.hostname} fast.cpclermont.workers.dev`,
+            headers,
+            `navigate ${url.toString()}`,
+          ].join('\n')
+        }
+
+        const updateScript = () => {
+          area.value = getScriptValue()
+        }
+
+        inputs.forEach((input) => {
+          input.addEventListener('input', updateScript)
+        })
+
+        updateScript()
+      </script>
+    </main>
+  </body>
+</html>

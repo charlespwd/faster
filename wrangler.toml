@@ -1,0 +1,5 @@
+name = "fast"
+type = "javascript"
+workers_dev = true
+route = ""
+zone_id = ""

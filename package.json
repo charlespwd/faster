@@ -1,0 +1,16 @@
+{
+  "private": true,
+  "name": "fast",
+  "version": "1.0.0",
+  "description": "A web worker to make websites fast",
+  "main": "index.js",
+  "scripts": {
+    "curl": "scripts/curl-production",
+    "curl:local": "scripts/curl-local"
+  },
+  "author": "Charles-P. Clermont <charles@cpclermont.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "prettier": "^1.18.2"
+  }
+}
