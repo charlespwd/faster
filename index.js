@@ -71,7 +71,7 @@ async function handleRequest(request) {
 
   // Error if x-host header missing
   if (!host) {
-    return new Response('x-host header missing', { status: 403 })
+    return fetch('https://charlespwd.github.io/faster');
   }
 
   console.log('host', host);
