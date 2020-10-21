@@ -161,6 +161,7 @@
             >
           </div>
           <textarea id="wpt-script" disabled rows="7"></textarea>
+          <input type="button" id="debug-button" value="Test run (30s)">
         </form>
       </section>
       <section>
@@ -335,6 +336,21 @@
         })
 
         updateScript()
+
+        function tryItOutFor30Seconds() {
+          const headers = Object.keys(elements)
+            .filter((x) => /^x-/.test(x))
+            .map(getHeaderKeyValue)
+            .filter(Boolean)
+          for (const [header, value] of headers) {
+            document.cookie = `${header}=${encodeURIComponent(value)};path=/;max-age=30`;
+          }
+          const url = new URL(elements.url.value)
+          document.cookie = `x-host=${encodeURIComponent(url.hostname)};path=/;max-age=30`;
+          location.reload();
+        }
+
+        document.getElementById('debug-button').addEventListener('click', tryItOutFor30Seconds);
       </script>
     </main>
   </body>
