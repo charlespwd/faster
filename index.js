@@ -18,8 +18,8 @@ async function getResponse(request, shouldPush) {
   // If push of headers is not enabled, return a copy of the response
   // (so we can mutate the headers).
   if (!shouldPush) {
-    const response = await fetch(request);
-    return new Response(response.body, response);
+    const response = await fetch(request)
+    return new Response(response.body, response)
   }
 
   // Allow for pushing HTTP headers while we wait for the response
@@ -55,7 +55,7 @@ async function getResponse(request, shouldPush) {
     status: 200,
     statusText: 'OK',
     headers: headers,
-  });
+  })
 }
 
 async function handleRequest(request) {
@@ -66,21 +66,44 @@ async function handleRequest(request) {
     return new Response('User-agent: *\nDisallow: /', { status: 200 })
   }
 
+  const cookies = (request.headers.get('cookie') || '')
+    .split(';')
+    .map((x) => x.split('='))
+    .reduce((acc, [k, v]) => {
+      acc[k.trim()] = decodeURIComponent(v)
+      return acc
+    }, {})
+
+  const config = [
+    'x-host',
+    'x-link',
+    'x-async',
+    'x-defer',
+    'x-no-async-hide',
+    'x-bypass-transform',
+    'x-push',
+  ]
+    .map((k) => [k, request.headers.get(k) || cookies[k]])
+    .reduce((acc, [k, v]) => {
+      acc[k] = v
+      return acc
+    }, {})
+
   // When overrideHost is used in a script, WPT sets x-host to original host i.e. site we want to proxy
-  const host = request.headers.get('x-host')
+  const host = config['x-host']
+  console.log(host, config, cookies);
 
   // Error if x-host header missing
   if (!host) {
-    return fetch('https://charlespwd.github.io/faster');
+    return fetch('https://charlespwd.github.io/faster')
   }
 
-  console.log('host', host);
   url.hostname = host
 
-  const bypassTransform = request.headers.get('x-bypass-transform')
+  const bypassTransform = config['x-bypass-transform']
   const acceptHeader = request.headers.get('accept')
 
-  const isHtmlRequest = acceptHeader && acceptHeader.includes('text/html')
+  const isHtmlRequest = acceptHeader && (acceptHeader.includes('text/html') || acceptHeader.includes('*/*'));
   const shouldBypassTransform =
     bypassTransform && bypassTransform.indexOf('true') !== -1
   const shouldTransform = isHtmlRequest && !shouldBypassTransform
@@ -96,13 +119,13 @@ async function handleRequest(request) {
     return fetch(url, req)
   }
 
-  const linkHeader = req.headers.get('x-link')
-  const asyncSelector = req.headers.get('x-async')
-  const deferSelector = req.headers.get('x-defer')
-  const asyncHide = req.headers.get('x-no-async-hide') === 'true'
-  const shouldPush = req.headers.get('x-push') !== 'true'
+  const linkHeader = config['x-link']
+  const asyncSelector = config['x-async']
+  const deferSelector = config['x-defer']
+  const asyncHide = config['x-no-async-hide'] === 'true'
+  const shouldPush = config['x-push'] !== 'true'
 
-  const response = await getResponse(req, shouldPush);
+  const response = await getResponse(req, shouldPush)
 
   // Add the link header
   if (linkHeader) response.headers.append('Link', linkHeader)
@@ -110,7 +133,7 @@ async function handleRequest(request) {
   // Fancy pantsy way of turning on/off features and applying them on an
   // HTMLRewriter. Stored as [fnName, ...args][].
   const commands = [
-    asyncHide && ['on' ,'head > style', new AsyncHideHandler()],
+    asyncHide && ['on', 'head > style', new AsyncHideHandler()],
     deferSelector && ['on', deferSelector, new AttrHandler('defer', true)],
     asyncSelector && ['on', asyncSelector, new AttrHandler('async', true)],
     ['transform', response],
