@@ -1,4 +1,4 @@
-name = "fast"
+name = "faster"
 type = "javascript"
 workers_dev = true
 route = ""
