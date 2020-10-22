@@ -58,6 +58,11 @@ async function getResponse(request, shouldPush) {
   })
 }
 
+function zipByDecode(acc, [k, v]) {
+  acc[k.trim()] = decodeURIComponent(v)
+  return acc
+}
+
 async function handleRequest(request) {
   const url = new URL(request.url)
 
@@ -66,13 +71,21 @@ async function handleRequest(request) {
     return new Response('User-agent: *\nDisallow: /', { status: 200 })
   }
 
+  const qs = url.search
+    .slice(1)
+    .split('&')
+    .map((x) => x.split('='))
+    .reduce(zipByDecode, {})
+
+  const shouldOnDomainProxy = !!qs.odp
+  if (shouldOnDomainProxy) {
+    return fetch(qs.odp.replace(/^\/\//, 'https://'), request)
+  }
+
   const cookies = (request.headers.get('cookie') || '')
     .split(';')
     .map((x) => x.split('='))
-    .reduce((acc, [k, v]) => {
-      acc[k.trim()] = decodeURIComponent(v)
-      return acc
-    }, {})
+    .reduce(zipByDecode, {})
 
   const config = [
     'x-host',
@@ -82,6 +95,7 @@ async function handleRequest(request) {
     'x-no-async-hide',
     'x-bypass-transform',
     'x-push',
+    'x-on-domain',
   ]
     .map((k) => [k, request.headers.get(k) || cookies[k]])
     .reduce((acc, [k, v]) => {
@@ -91,19 +105,21 @@ async function handleRequest(request) {
 
   // When overrideHost is used in a script, WPT sets x-host to original host i.e. site we want to proxy
   const host = config['x-host']
-  console.log(host, config, cookies);
 
   // Error if x-host header missing
   if (!host) {
     return fetch('https://charlespwd.github.io/faster')
   }
 
+  const requestHost = url.hostname
   url.hostname = host
 
   const bypassTransform = config['x-bypass-transform']
   const acceptHeader = request.headers.get('accept')
 
-  const isHtmlRequest = acceptHeader && (acceptHeader.includes('text/html') || acceptHeader.includes('*/*'));
+  const isHtmlRequest =
+    acceptHeader &&
+    (acceptHeader.includes('text/html') || acceptHeader.includes('*/*'))
   const shouldBypassTransform =
     bypassTransform && bypassTransform.indexOf('true') !== -1
   const shouldTransform = isHtmlRequest && !shouldBypassTransform
@@ -124,6 +140,7 @@ async function handleRequest(request) {
   const deferSelector = config['x-defer']
   const asyncHide = config['x-no-async-hide'] === 'true'
   const shouldPush = config['x-push'] !== 'true'
+  const domains = config['x-on-domain']
 
   const response = await getResponse(req, shouldPush)
 
@@ -136,6 +153,16 @@ async function handleRequest(request) {
     asyncHide && ['on', 'head > style', new AsyncHideHandler()],
     deferSelector && ['on', deferSelector, new AttrHandler('defer', true)],
     asyncSelector && ['on', asyncSelector, new AttrHandler('async', true)],
+    domains && [
+      'on',
+      'script[src],link[href][rel=stylesheet],link[href][rel=preload],link[href][rel*=icon]',
+      new OnDomainHandler(domains, url.hostname),
+    ],
+    domains && [
+      'on',
+      'link[href][rel=preconnect],link[href][rel=dns-prefetch]',
+      new DeleteNodeHandler(),
+    ],
     ['transform', response],
   ].filter(Boolean)
 
@@ -143,6 +170,29 @@ async function handleRequest(request) {
   return commands.reduce((rewriter, [fnName, ...args]) => {
     return rewriter[fnName](...args)
   }, new HTMLRewriter())
+}
+
+class DeleteNodeHandler {
+  element(element) {
+    console.log('removing element', element);
+    element.remove();
+  }
+}
+
+class OnDomainHandler {
+  constructor(domains, host) {
+    this.domains = domains
+      .split(',')
+      .map((domain) => new RegExp(domain.replace(/\./g, '.').replace(/\*/g, 'w*')))
+    this.host = host
+  }
+  element(element) {
+    const attr = element.getAttribute('href') ? 'href' : 'src'
+    const src = element.getAttribute(attr)
+    const shouldReplace = !!this.domains.find((domain) => domain.test(src))
+    if (!shouldReplace) return
+    element.setAttribute(attr, '/?odp=' + encodeURIComponent(src))
+  }
 }
 
 class AsyncHideHandler {
