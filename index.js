@@ -155,7 +155,7 @@ async function handleRequest(request) {
     asyncSelector && ['on', asyncSelector, new AttrHandler('async', true)],
     domains && [
       'on',
-      'script[src],link[href][rel=stylesheet],link[href][rel=preload],link[href][rel*=icon]',
+      'script[src],link[href][rel=stylesheet],link[href][rel=preload],link[href][rel*=icon],[src],[data-srcset],[data-src]',
       new OnDomainHandler(domains, url.hostname),
     ],
     domains && [
@@ -179,6 +179,9 @@ class DeleteNodeHandler {
   }
 }
 
+const urlRegex = /(https?:)?\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/g
+const replacer = match => `/?odp=${encodeURIComponent(match)}`;
+
 class OnDomainHandler {
   constructor(domains, host) {
     this.domains = domains
@@ -187,11 +190,13 @@ class OnDomainHandler {
     this.host = host
   }
   element(element) {
-    const attr = element.getAttribute('href') ? 'href' : 'src'
-    const src = element.getAttribute(attr)
-    const shouldReplace = !!this.domains.find((domain) => domain.test(src))
-    if (!shouldReplace) return
-    element.setAttribute(attr, '/?odp=' + encodeURIComponent(src))
+    const attrs = ['href', 'src', 'srcset', 'data-srcset', 'data-src'].filter(element.getAttribute.bind(element));
+    for (const attr of attrs) {
+      const attrValue = element.getAttribute(attr)
+      const shouldReplace = !!this.domains.find((domain) => domain.test(attrValue))
+      if (!shouldReplace) return
+      element.setAttribute(attr, attrValue.replace(urlRegex, replacer));
+    }
   }
 }
 
