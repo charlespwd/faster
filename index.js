@@ -179,7 +179,9 @@ class DeleteNodeHandler {
   }
 }
 
-const urlRegex = /(https?:)?\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/g
+// This special regex matches two collocated regexes because special sites
+// like gymshark do weird proxying of their own. It's a double proxy...
+const urlRegex = /((https?:)?\/\/([-a-zA-Z0-9@:%._\+~#=]{1,256}\.)+[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=,]*)\/?)+/gm
 const replacer = match => `/?odp=${encodeURIComponent(match)}`;
 
 class OnDomainHandler {
