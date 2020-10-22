@@ -150,6 +150,18 @@
             </div>
           </div>
           <div>
+            <label><input type="checkbox" name="on-domain" />x-on-domain</label>
+            <div>
+              <label class="screen-reader" for="x-on-domain">domains:</label>
+              <input
+                type="text"
+                id="x-on-domain"
+                name="x-on-domain"
+                placeholder="*.example.com,cdn.bar.com"
+              />
+            </div>
+          </div>
+          <div>
             <label><input type="checkbox" name="x-push" />x-push</label>
           </div>
           <div>
@@ -161,7 +173,7 @@
             >
           </div>
           <textarea id="wpt-script" disabled rows="7"></textarea>
-          <input type="button" id="debug-button" value="Test run (30s)">
+          <input type="button" id="debug-button" value="Test run (30s)" />
         </form>
       </section>
       <section>
@@ -210,6 +222,25 @@
             <p>
               @example:<br />
               <code>X-Defer: head &gt; script:not([async]):not([defer])</code>
+            </p>
+          </li>
+          <li>
+            <code>x-on-domain: &lt;domainSpec&gt;</code>
+            <p>
+              For all urls matched by the domainSpec, the worker will simulate
+              on-domain delivery by proxying script and relevant link resources.
+              The worker will also remove connection hints that are no longer
+              necessary.
+            </p>
+            <p>
+              domainSpec: a comma separated list of domain regexes.
+              <br />'*' is replaced by '\w*' <br />'.' is replaced by '\.'
+            </p>
+            <p>
+              @examples:<br />
+              <code>X-On-Domain: *</code><br />
+              <code>X-On-Domain: *.example.com</code><br />
+              <code>X-On-Domain: cdn.shopify.com,fonts.shopify.com</code>
             </p>
           </li>
           <li>
@@ -275,42 +306,52 @@
         }
 
         const isLinkHeaderValid = (linkHeader) =>
-          !linkHeader || /^(<https?:\/\/[^>]+>(;\s?\w+(=\w+)?)+(,\s)*)+$/.test(linkHeader)
+          !linkHeader ||
+          /^(<https?:\/\/[^>]+>(;\s?\w+(=\w+)?)+(,\s)*)+$/.test(linkHeader)
 
         const debounce = (fn, ms) => {
-          let timeoutId;
+          let timeoutId
           return (...args) => {
-            clearTimeout(timeoutId);
+            clearTimeout(timeoutId)
             timeoutId = setTimeout(() => {
-              fn(...args);
-            }, ms);
+              fn(...args)
+            }, ms)
           }
         }
 
-        const xLinkInput = elements['x-link'];
+        const xLinkInput = elements['x-link']
 
         const validateLinkHeader = () => {
-          const input = xLinkInput;
-          const isValid = isLinkHeaderValid(getInputValue(input));
+          const input = xLinkInput
+          const isValid = isLinkHeaderValid(getInputValue(input))
           if (isValid) {
-            input.setCustomValidity('');
-            input.reportValidity();
+            input.setCustomValidity('')
+            input.reportValidity()
           } else {
             input.setCustomValidity(
-`Looks like there's an error in your HTTP header. Expecting semi-colons between attributes, new lines between links, and https:// in your URL`)
-            input.reportValidity();
+              `Looks like there's an error in your HTTP header. Expecting semi-colons between attributes, new lines between links, and https:// in your URL`,
+            )
+            input.reportValidity()
           }
         }
 
-        xLinkInput.addEventListener('input', debounce(validateLinkHeader, 1000));
-        validateLinkHeader();
+        xLinkInput.addEventListener('input', debounce(validateLinkHeader, 1000))
+        validateLinkHeader()
 
         const watchNewLine = () => {
-          xLinkInput.rows = xLinkInput.value.split('\n').length + 1;
+          xLinkInput.rows = xLinkInput.value.split('\n').length + 1
         }
 
-        xLinkInput.addEventListener('input', watchNewLine);
-        watchNewLine();
+        xLinkInput.addEventListener('input', watchNewLine)
+        watchNewLine()
+
+        const getURL = () => {
+          try {
+            return new URL(elements.url.value)
+          } catch (e) {
+            return null
+          }
+        }
 
         const getScriptValue = () => {
           const headers = Object.keys(elements)
@@ -319,12 +360,16 @@
             .filter(Boolean)
             .map(([header, value]) => `setHeader ${header}: ${value}`)
             .join('\n')
-          const url = new URL(elements.url.value)
-          return [
-            `overrideHost ${url.hostname} fast.cpclermont.workers.dev`,
-            headers,
-            `navigate ${url.toString()}`,
-          ].join('\n')
+          try {
+            const url = getURL()
+            return [
+              url && `overrideHost ${url.hostname} fast.cpclermont.workers.dev`,
+              headers,
+              url && `navigate ${url.toString()}`,
+            ]
+              .filter(Boolean)
+              .join('\n')
+          } catch (e) {}
         }
 
         const updateScript = () => {
@@ -343,14 +388,20 @@
             .map(getHeaderKeyValue)
             .filter(Boolean)
           for (const [header, value] of headers) {
-            document.cookie = `${header}=${encodeURIComponent(value)};path=/;max-age=30`;
+            document.cookie = `${header}=${encodeURIComponent(
+              value,
+            )};path=/;max-age=30`
           }
           const url = new URL(elements.url.value)
-          document.cookie = `x-host=${encodeURIComponent(url.hostname)};path=/;max-age=30`;
-          location.reload();
+          document.cookie = `x-host=${encodeURIComponent(
+            url.hostname,
+          )};path=/;max-age=30`
+          location.reload()
         }
 
-        document.getElementById('debug-button').addEventListener('click', tryItOutFor30Seconds);
+        document
+          .getElementById('debug-button')
+          .addEventListener('click', tryItOutFor30Seconds)
       </script>
     </main>
   </body>
