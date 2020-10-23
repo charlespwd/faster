@@ -63,6 +63,56 @@ function zipByDecode(acc, [k, v]) {
   return acc
 }
 
+async function proxyFetch(odp, request) {
+  const proxyRequestUrl = odp.replace(/^\/\//, 'https://');
+  const response = await fetch(proxyRequestUrl, {
+    ...request,
+    cf: {
+      cacheEverything: true,
+      cacheTtl: 60 * 5, // 5 minutes
+    },
+  });
+
+  const shouldTransformProxiedRequest = request.headers.get('accept').indexOf('text/css') !== -1;
+  if (!shouldTransformProxiedRequest) {
+    return response;
+  }
+
+  console.log('hello world');
+
+  // Replace all urls in the CSS with odp urls.
+  const { readable } = new ReplaceStream(response.body, s => s.replace(urlRegex, replacer));
+
+  return new Response(readable, response);
+}
+
+class ReplaceStream {
+  constructor(inputStream, fn) {
+    const { readable, writable } = new TransformStream();
+    this.reader = inputStream.getReader();
+    this.writer = writable.getWriter();
+    this.readable = readable;
+    this.decoder = new TextDecoder();
+    this.encoder = new TextEncoder();
+    this.fn = fn;
+    this.transform().catch(e => console.error(e.message));
+  }
+
+  async transform(transform) {
+    let chunk;
+    const { writer, reader, encoder, decoder, fn } = this;
+    while (chunk = await reader.read()) {
+      if (!chunk || chunk.done === true) return writer.close();
+      const value = decoder.decode(chunk.value);
+      const transformedValue = fn(value);
+      const encodedValue = encoder.encode(transformedValue);
+      writer.write(encodedValue).catch(() => {});
+    }
+    return writer.close();
+  }
+}
+
+
 async function handleRequest(request) {
   const url = new URL(request.url)
 
@@ -79,7 +129,7 @@ async function handleRequest(request) {
 
   const shouldOnDomainProxy = !!qs.odp
   if (shouldOnDomainProxy) {
-    return fetch(qs.odp.replace(/^\/\//, 'https://'), request)
+    return proxyFetch(qs.odp, request);
   }
 
   const cookies = (request.headers.get('cookie') || '')
@@ -174,30 +224,36 @@ async function handleRequest(request) {
 
 class DeleteNodeHandler {
   element(element) {
-    console.log('removing element', element);
-    element.remove();
+    console.log('removing element', element)
+    element.remove()
   }
 }
 
 // This special regex matches two collocated regexes because special sites
 // like gymshark do weird proxying of their own. It's a double proxy...
 const urlRegex = /((https?:)?\/\/([-a-zA-Z0-9@:%._\+~#=]{1,256}\.)+[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=,]*)\/?)+/gm
-const replacer = match => `/?odp=${encodeURIComponent(match)}`;
+const replacer = (match) => `/?odp=${encodeURIComponent(match)}`
 
 class OnDomainHandler {
   constructor(domains, host) {
     this.domains = domains
       .split(',')
-      .map((domain) => new RegExp(domain.replace(/\./g, '.').replace(/\*/g, 'w*')))
+      .map(
+        (domain) => new RegExp(domain.replace(/\./g, '.').replace(/\*/g, 'w*')),
+      )
     this.host = host
   }
   element(element) {
-    const attrs = ['href', 'src', 'srcset', 'data-srcset', 'data-src'].filter(element.getAttribute.bind(element));
+    const attrs = ['href', 'src', 'srcset', 'data-srcset', 'data-src'].filter(
+      element.getAttribute.bind(element),
+    )
     for (const attr of attrs) {
       const attrValue = element.getAttribute(attr)
-      const shouldReplace = !!this.domains.find((domain) => domain.test(attrValue))
+      const shouldReplace = !!this.domains.find((domain) =>
+        domain.test(attrValue),
+      )
       if (!shouldReplace) return
-      element.setAttribute(attr, attrValue.replace(urlRegex, replacer));
+      element.setAttribute(attr, attrValue.replace(urlRegex, replacer))
     }
   }
 }
