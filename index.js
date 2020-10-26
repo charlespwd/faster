@@ -63,55 +63,58 @@ function zipByDecode(acc, [k, v]) {
   return acc
 }
 
-async function proxyFetch(odp, request) {
-  const proxyRequestUrl = odp.replace(/^\/\//, 'https://');
+async function proxyFetch(odp, realRequest, compression) {
+  const proxyRequestUrl = odp.replace(/^\/\//, 'https://')
+  const request = new Request(realRequest)
+  if (compression) {
+    request.headers.set('Accept-Encoding', compression)
+  }
   const response = await fetch(proxyRequestUrl, {
     ...request,
     cf: {
       cacheEverything: true,
-      cacheTtl: 60 * 5, // 5 minutes
+      cacheTtl: 5 * 60, // 5 minutes
     },
-  });
+  })
 
-  const shouldTransformProxiedRequest = request.headers.get('accept').indexOf('text/css') !== -1;
+  const shouldTransformProxiedRequest =
+    realRequest.headers.get('accept').indexOf('text/css') !== -1
   if (!shouldTransformProxiedRequest) {
-    return response;
+    return new Response(response.body, response)
   }
 
-  console.log('hello world');
-
   // Replace all urls in the CSS with odp urls.
-  const { readable } = new ReplaceStream(response.body, s => s.replace(urlRegex, replacer));
-
-  return new Response(readable, response);
+  const { readable } = new ReplaceStream(response.body, (s) =>
+    s.replace(urlRegex, replacer(compression)),
+  )
+  return new Response(readable, response)
 }
 
 class ReplaceStream {
   constructor(inputStream, fn) {
-    const { readable, writable } = new TransformStream();
-    this.reader = inputStream.getReader();
-    this.writer = writable.getWriter();
-    this.readable = readable;
-    this.decoder = new TextDecoder();
-    this.encoder = new TextEncoder();
-    this.fn = fn;
-    this.transform().catch(e => console.error(e.message));
+    const { readable, writable } = new TransformStream()
+    this.reader = inputStream.getReader()
+    this.writer = writable.getWriter()
+    this.readable = readable
+    this.decoder = new TextDecoder()
+    this.encoder = new TextEncoder()
+    this.fn = fn
+    this.transform().catch((e) => console.error(e.message))
   }
 
   async transform(transform) {
-    let chunk;
-    const { writer, reader, encoder, decoder, fn } = this;
-    while (chunk = await reader.read()) {
-      if (!chunk || chunk.done === true) return writer.close();
-      const value = decoder.decode(chunk.value);
-      const transformedValue = fn(value);
-      const encodedValue = encoder.encode(transformedValue);
-      writer.write(encodedValue).catch(() => {});
+    let chunk
+    const { writer, reader, encoder, decoder, fn } = this
+    while ((chunk = await reader.read())) {
+      if (!chunk || chunk.done === true) return writer.close()
+      const value = decoder.decode(chunk.value)
+      const transformedValue = fn(value)
+      const encodedValue = encoder.encode(transformedValue)
+      writer.write(encodedValue).catch(() => {})
     }
-    return writer.close();
+    return writer.close()
   }
 }
-
 
 async function handleRequest(request) {
   const url = new URL(request.url)
@@ -129,7 +132,11 @@ async function handleRequest(request) {
 
   const shouldOnDomainProxy = !!qs.odp
   if (shouldOnDomainProxy) {
-    return proxyFetch(qs.odp, request);
+    const response = await proxyFetch(qs.odp, request, qs.compression)
+    if (qs.compression) {
+      response.headers.set('cache-control', 'no-transform')
+    }
+    return response
   }
 
   const cookies = (request.headers.get('cookie') || '')
@@ -146,6 +153,7 @@ async function handleRequest(request) {
     'x-bypass-transform',
     'x-push',
     'x-on-domain',
+    'x-compression',
   ]
     .map((k) => [k, request.headers.get(k) || cookies[k]])
     .reduce((acc, [k, v]) => {
@@ -190,6 +198,7 @@ async function handleRequest(request) {
   const deferSelector = config['x-defer']
   const asyncHide = config['x-no-async-hide'] === 'true'
   const shouldPush = config['x-push'] !== 'true'
+  const compression = config['x-compression']
   const domains = config['x-on-domain']
 
   const response = await getResponse(req, shouldPush)
@@ -206,7 +215,7 @@ async function handleRequest(request) {
     domains && [
       'on',
       'script[src],link[href][rel=stylesheet],link[href][rel=preload],link[href][rel*=icon],[src],[data-srcset],[data-src]',
-      new OnDomainHandler(domains, url.hostname),
+      new OnDomainHandler(domains, url.hostname, compression),
     ],
     domains && [
       'on',
@@ -232,10 +241,23 @@ class DeleteNodeHandler {
 // This special regex matches two collocated regexes because special sites
 // like gymshark do weird proxying of their own. It's a double proxy...
 const urlRegex = /((https?:)?\/\/([-a-zA-Z0-9@:%._\+~#=]{1,256}\.)+[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=,]*)\/?)+/gm
-const replacer = (match) => `/?odp=${encodeURIComponent(match)}`
+const replacer = (compression) => (match) => {
+  if (
+    /\/\/cdn\.shopify\.com\/.*(\.js|\.css)(\?.*)?$/.test(match) &&
+    compression
+  ) {
+    const url = /\?/.test(match)
+      ? `${match}&enable_compression=1`
+      : `${match}?enable_compression=1`
+    return `/?odp=${encodeURIComponent(url)}&compression=${compression}`
+  }
+
+  return `/?odp=${encodeURIComponent(match)}`
+}
 
 class OnDomainHandler {
-  constructor(domains, host) {
+  constructor(domains, host, compression) {
+    this.replacer = replacer(compression)
     this.domains = domains
       .split(',')
       .map(
@@ -253,7 +275,7 @@ class OnDomainHandler {
         domain.test(attrValue),
       )
       if (!shouldReplace) return
-      element.setAttribute(attr, attrValue.replace(urlRegex, replacer))
+      element.setAttribute(attr, attrValue.replace(urlRegex, this.replacer))
     }
   }
 }
