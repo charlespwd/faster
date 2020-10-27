@@ -155,6 +155,9 @@ async function handleRequest(request) {
     'x-on-domain',
     'x-compression',
     'x-lazyload',
+    'x-remove-element',
+    'x-append-to-head',
+    'x-append-to-body',
   ]
     .map((k) => [k, request.headers.get(k) || cookies[k]])
     .reduce((acc, [k, v]) => {
@@ -202,6 +205,9 @@ async function handleRequest(request) {
   const compression = config['x-compression']
   const domains = config['x-on-domain']
   const lazyloadSelector = config['x-lazyload'];
+  const removeElementSelector = config['x-remove-element']
+  const appendToHeadContent = config['x-append-to-head']
+  const appendToBodyContent = config['x-append-to-body']
 
   const response = await getResponse(req, shouldPush)
 
@@ -215,6 +221,21 @@ async function handleRequest(request) {
     deferSelector && ['on', deferSelector, new AttrHandler('defer', true)],
     asyncSelector && ['on', asyncSelector, new AttrHandler('async', true)],
     lazyloadSelector && ['on', lazyloadSelector, new AttrHandler('loading', 'lazy')],
+    removeElementSelector && [
+      'on',
+      `${removeElementSelector}`,
+      new RemoveElementHandler(),
+    ],
+    appendToHeadContent && [
+      'on',
+      'head',
+      new AppendHandler(appendToHeadContent),
+    ],
+    appendToBodyContent && [
+      'on',
+      `body`,
+      new AppendHandler(appendToBodyContent),
+    ],
     domains && [
       'on',
       'script[src],link[href][rel=stylesheet],link[href][rel=preload],link[href][rel*=icon],[src],[data-srcset],[data-src]',
@@ -223,7 +244,7 @@ async function handleRequest(request) {
     domains && [
       'on',
       'link[href][rel=preconnect],link[href][rel=dns-prefetch]',
-      new DeleteNodeHandler(),
+      new RemoveElementHandler(),
     ],
     ['transform', response],
   ].filter(Boolean)
@@ -234,7 +255,7 @@ async function handleRequest(request) {
   }, new HTMLRewriter())
 }
 
-class DeleteNodeHandler {
+class RemoveElementHandler {
   element(element) {
     element.remove()
   }
@@ -257,6 +278,16 @@ const replacer = (compression) => (match) => {
   return `/?odp=${encodeURIComponent(match)}`
 }
 
+class AppendHandler {
+  constructor(content) {
+    this.content = content
+  }
+
+  element(element) {
+    element.append(this.content, { html: true })
+  }
+}
+
 class OnDomainHandler {
   constructor(domains, host, compression) {
     this.replacer = replacer(compression)
@@ -267,6 +298,7 @@ class OnDomainHandler {
       )
     this.host = host
   }
+
   element(element) {
     const attrs = ['href', 'src', 'srcset', 'data-srcset', 'data-src'].filter(
       element.getAttribute.bind(element),
@@ -293,6 +325,7 @@ class AttrHandler {
     this._attribute = attribute
     this._value = value
   }
+
   element(element) {
     element.setAttribute(this._attribute, this._value)
   }
