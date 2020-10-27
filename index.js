@@ -63,12 +63,12 @@ function zipByDecode(acc, [k, v]) {
   return acc
 }
 
-async function proxyFetch(odp, realRequest, compression) {
+async function proxyFetch(qs, realRequest) {
+  const { odp, compression } = qs
   const proxyRequestUrl = odp.replace(/^\/\//, 'https://')
-  const request = new Request(realRequest)
-  if (compression) {
-    request.headers.set('Accept-Encoding', compression)
-  }
+  const request = new Request(proxyRequestUrl, realRequest)
+  if (compression) request.headers.set('Accept-Encoding', compression)
+
   const response = await fetch(proxyRequestUrl, {
     ...request,
     cf: {
@@ -78,16 +78,19 @@ async function proxyFetch(odp, realRequest, compression) {
   })
 
   const shouldTransformProxiedRequest =
-    realRequest.headers.get('accept').indexOf('text/css') !== -1
-  if (!shouldTransformProxiedRequest) {
-    return new Response(response.body, response)
+    !compression && realRequest.headers.get('accept').indexOf('text/css') !== -1
+
+  if (shouldTransformProxiedRequest) {
+    // Replace all urls in the CSS with odp urls.
+    const { readable } = new ReplaceStream(response.body, (s) =>
+      s.replace(urlRegex, replacer(compression)),
+    )
+    return new Response(readable, response)
   }
 
-  // Replace all urls in the CSS with odp urls.
-  const { readable } = new ReplaceStream(response.body, (s) =>
-    s.replace(urlRegex, replacer(compression)),
-  )
-  return new Response(readable, response)
+  const returnValue = new Response(response.body, response)
+  if (qs.compression) returnValue.headers.set('cache-control', 'no-transform')
+  return returnValue
 }
 
 class ReplaceStream {
@@ -132,10 +135,7 @@ async function handleRequest(request) {
 
   const shouldOnDomainProxy = !!qs.odp
   if (shouldOnDomainProxy) {
-    const response = await proxyFetch(qs.odp, request, qs.compression)
-    if (qs.compression) {
-      response.headers.set('cache-control', 'no-transform')
-    }
+    return proxyFetch(qs, request)
     return response
   }
 
@@ -233,7 +233,6 @@ async function handleRequest(request) {
 
 class DeleteNodeHandler {
   element(element) {
-    console.log('removing element', element)
     element.remove()
   }
 }
