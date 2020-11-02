@@ -227,11 +227,10 @@
           <li>
             <code>x-on-domain: &lt;domainSpec&gt;</code>
             <p>
-              For all urls matched by the domainSpec, the worker will
-              simulate on-domain delivery by proxying script, relevant link
-              resources, images and even fonts linked inside proxied CSS files.
-              The worker will also remove connection hints that are no longer
-              necessary.
+              For all urls matched by the domainSpec, the worker will simulate
+              on-domain delivery by proxying script, relevant link resources,
+              images and even fonts linked inside proxied CSS files. The worker
+              will also remove connection hints that are no longer necessary.
             </p>
             <p>
               domainSpec: a comma separated list of domain regexes.
@@ -290,7 +289,10 @@
 
         const getInputValue = (input) => {
           if (input.type === 'checkbox') return input.checked
-          return input.value.replace(/\n/g, ', ').replace(/,,/g, ',')
+          return input.value
+            .replace(/\n/g, ', ')
+            .replace(/,,/g, ',')
+            .replace(/,\s*,?$/, '')
         }
 
         const getHeaderKeyValue = (name) /*: [k, v] | null */ => {
