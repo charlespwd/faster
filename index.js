@@ -154,6 +154,7 @@ async function handleRequest(request) {
     'x-push',
     'x-on-domain',
     'x-compression',
+    'x-lazyload',
   ]
     .map((k) => [k, request.headers.get(k) || cookies[k]])
     .reduce((acc, [k, v]) => {
@@ -200,6 +201,7 @@ async function handleRequest(request) {
   const shouldPush = config['x-push'] !== 'true'
   const compression = config['x-compression']
   const domains = config['x-on-domain']
+  const lazyloadSelector = config['x-lazyload'];
 
   const response = await getResponse(req, shouldPush)
 
@@ -212,6 +214,7 @@ async function handleRequest(request) {
     asyncHide && ['on', 'head > style', new AsyncHideHandler()],
     deferSelector && ['on', deferSelector, new AttrHandler('defer', true)],
     asyncSelector && ['on', asyncSelector, new AttrHandler('async', true)],
+    lazyloadSelector && ['on', lazyloadSelector, new AttrHandler('loading', 'lazy')],
     domains && [
       'on',
       'script[src],link[href][rel=stylesheet],link[href][rel=preload],link[href][rel*=icon],[src],[data-srcset],[data-src]',
