@@ -198,7 +198,7 @@ async function handleRequest(request) {
   const asyncSelector = config['x-async']
   const deferSelector = config['x-defer']
   const asyncHide = config['x-no-async-hide'] === 'true'
-  const shouldPush = config['x-push'] !== 'true'
+  const shouldPush = config['x-push'] === 'true'
   const compression = config['x-compression']
   const domains = config['x-on-domain']
   const lazyloadSelector = config['x-lazyload'];
