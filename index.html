@@ -133,7 +133,7 @@
                 type="text"
                 id="x-async"
                 name="x-async"
-                placeholder="head > script:not([async]):not([defer])"
+                value="head > script:not([async]):not([defer])"
               />
             </div>
           </div>
@@ -145,7 +145,7 @@
                 type="text"
                 id="x-defer"
                 name="x-defer"
-                placeholder="head > script:not([defer]):not([defer])"
+                value="head > script:not([defer]):not([defer])"
               />
             </div>
           </div>
@@ -172,7 +172,41 @@
               />x-no-async-hide</label
             >
           </div>
+          <div>
+            <label><input type="checkbox" name="lazyload" />x-lazyload</label>
+            <div>
+              <label class="screen-reader" for="x-lazyload"
+                >CSS Selector:</label
+              >
+              <input
+                type="text"
+                id="x-lazyload"
+                name="x-lazyload"
+                placeholder="img.below-the-fold"
+              />
+            </div>
+          </div>
+          <div>
+            <label
+              ><input
+                type="checkbox"
+                name="remove-element"
+              />x-remove-element</label
+            >
+            <div>
+              <label class="screen-reader" for="x-remove-element"
+                >CSS Selector:</label
+              >
+              <input
+                type="text"
+                id="x-remove-element"
+                name="x-remove-element"
+                placeholder="iframe[src*=youtube]"
+              />
+            </div>
+          </div>
           <textarea id="wpt-script" disabled rows="7"></textarea>
+          <input type="button" id="copy" value="📋 Copy To Clipboard" />
           <input type="button" id="debug-button" value="Test run (30s)" />
         </form>
       </section>
@@ -180,6 +214,20 @@
         <h2>Reference</h2>
         <p>This Cloudflare worker responds to the following HTTP headers:</p>
         <ul>
+          <li>
+            <code>x-host: &lt;domain&gt;</code>
+            <p>
+              When set, this cloudflare worker will proxy the specified domain.
+            </p>
+            <p>
+              WebPageTest does this for us when we use
+              <code>overrideHost</code>.
+            </p>
+            <p>
+              @example:
+              <code>X-Host: www.simplified.dev</code>
+            </p>
+          </li>
           <li>
             <code>x-bypass-transform: &lt;bool&gt;</code>
             <p>
@@ -270,6 +318,28 @@
             <p>
               @example:
               <code>X-No-Async-Hide: true</code>
+            </p>
+          </li>
+          <li>
+            <code>x-lazyload: &lt;cssSelector&gt;</code>
+            <p>
+              When set, the worker will add the attribute
+              <code>loading="lazy"</code> to the matching elements.
+            </p>
+            <p>
+              @example:
+              <code>X-Lazyload: img.below-the-fold</code>
+            </p>
+          </li>
+          <li>
+            <code>x-remove-element: &lt;cssSelector&gt;</code>
+            <p>
+              When set, the worker will remove the elements matching the css
+              selector from the output HTML.
+            </p>
+            <p>
+              @example:
+              <code>X-Remove-Element: iframe[src*=youtube]</code>
             </p>
           </li>
         </ul>
@@ -364,10 +434,11 @@
             .map(([header, value]) => `setHeader ${header}: ${value}`)
             .join('\n')
           try {
+            let host = location.hostname
+            if (/127\.0\.0\.1/.test(host)) host += ':8787'
             const url = getURL()
             return [
-              url &&
-                `overrideHost ${url.hostname} faster.cpclermont.workers.dev`,
+              url && `overrideHost ${url.hostname} ${host}`,
               headers,
               url && `navigate ${url.toString()}`,
             ]
@@ -386,26 +457,36 @@
 
         updateScript()
 
-        function tryItOutFor30Seconds() {
-          const headers = Object.keys(elements)
-            .filter((x) => /^x-/.test(x))
-            .map(getHeaderKeyValue)
-            .filter(Boolean)
-          for (const [header, value] of headers) {
-            document.cookie = `${header}=${encodeURIComponent(
-              value,
-            )};path=/;max-age=30`
-          }
-          const url = new URL(elements.url.value)
-          document.cookie = `x-host=${encodeURIComponent(
-            url.hostname,
-          )};path=/;max-age=30`
-          location.reload()
-        }
-
         document
           .getElementById('debug-button')
-          .addEventListener('click', tryItOutFor30Seconds)
+          .addEventListener('click', function tryItOutFor30Seconds() {
+            const headers = Object.keys(elements)
+              .filter((x) => /^x-/.test(x))
+              .map(getHeaderKeyValue)
+              .filter(Boolean)
+            for (const [header, value] of headers) {
+              document.cookie = `${header}=${encodeURIComponent(
+                value,
+              )};path=/;max-age=30`
+            }
+            const url = new URL(elements.url.value)
+            document.cookie = `x-host=${encodeURIComponent(
+              url.hostname,
+            )};path=/;max-age=30`
+
+            if (/127\.0\.0\.1/.test(location.hostname)) {
+              location.href = 'http://127.0.0.1:8787'
+            } else {
+              location.reload()
+            }
+          })
+
+        document
+          .getElementById('copy')
+          .addEventListener('click', function copyScriptToClipboard() {
+            const scriptText = getScriptValue();
+            navigator.clipboard.writeText(scriptText);
+          })
       </script>
     </main>
   </body>
