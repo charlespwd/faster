@@ -1,20 +1,14 @@
 /**
  * Configurable WebPageTest Cloudflare Worker.
  *
- * Options (sent as headers)
- *  - `x-no-async-hide: true    `: disables Google Optimize anti-flicker snippet
- *  - `x-async: <cssSelector>   `: add `async="true"` to nodes targeted by css selector
- *  - `x-bypass-transform: true `: disable all transformations
- *  - `x-defer: <cssSelector>   `: add `defer="true"` to nodes targeted by css selector
- *  - `x-link: <linkHeader>     `: preconnect & preloads you'd want to add to the response
- *  - `x-push: true             `: enables header streaming while we wait for the response
+ * Options (see index.html)
  */
 
 addEventListener('fetch', (event) => {
   event.respondWith(handleRequest(event.request))
 })
 
-async function getResponse(request, shouldPush) {
+async function getResponse(request, shouldPush, shopId) {
   // If push of headers is not enabled, return a copy of the response
   // (so we can mutate the headers).
   if (!shouldPush) {
@@ -25,32 +19,31 @@ async function getResponse(request, shouldPush) {
   // Allow for pushing HTTP headers while we wait for the response
   const { readable, writable } = new TransformStream()
 
+  // Start request in parallel
   fetch(request).then((response) => {
     response.body.pipeTo(writable)
   })
 
-  const allHeaders = [
-    ['connection', 'keep-alive'],
-    ['content-language', 'en'],
-    [
-      'content-security-policy',
+  // Hardcode some HTTP headers
+  const headers = new Headers({
+    connection: 'keep-alive',
+    'content-language': 'en',
+    'content-security-policy':
       "block-all-mixed-content; frame-ancestors 'none'; upgrade-insecure-requests;",
-    ],
-    ['content-type', 'text/html; charset=utf-8'],
-    ['server', 'cloudflare'],
-    ['strict-transport-security', 'max-age=7889238'],
-    ['vary', 'Accept'],
-    ['x-frame-options', 'DENY'],
-    ['x-permitted-cross-domain-policies', 'none'],
-    ['x-xss-protection', '1; mode=block'],
-  ]
+    'content-type': 'text/html; charset=utf-8',
+    server: 'cloudflare',
+    'strict-transport-security': 'max-age=7889238',
+    vary: 'Accept',
+    'x-frame-options': 'DENY',
+    'x-permitted-cross-domain-policies': 'none',
+    'x-xss-protection': '1; mode=block',
+    'x-request-id': uuid(), // fake nginx
+  })
 
-  const headers = new Headers()
+  // not a typo it's x-shopid on the shopify side >.>
+  if (shopId) headers.append('x-shopid', shopId);
 
-  for (const [k, v] of allHeaders) {
-    headers.append(k, v)
-  }
-
+  // Return a response that will eventually stream the proxied payload
   return new Response(readable, {
     status: 200,
     statusText: 'OK',
@@ -152,6 +145,7 @@ async function handleRequest(request) {
     'x-no-async-hide',
     'x-bypass-transform',
     'x-push',
+    'x-shop-id',
     'x-on-domain',
     'x-compression',
     'x-lazyload',
@@ -202,14 +196,15 @@ async function handleRequest(request) {
   const deferSelector = config['x-defer']
   const asyncHide = config['x-no-async-hide'] === 'true'
   const shouldPush = config['x-push'] === 'true'
+  const shopId = config['x-shop-id']
   const compression = config['x-compression']
   const domains = config['x-on-domain']
-  const lazyloadSelector = config['x-lazyload'];
+  const lazyloadSelector = config['x-lazyload']
   const removeElementSelector = config['x-remove-element']
   const appendToHeadContent = config['x-append-to-head']
   const appendToBodyContent = config['x-append-to-body']
 
-  const response = await getResponse(req, shouldPush)
+  const response = await getResponse(req, shouldPush, shopId)
 
   // Add the link header
   if (linkHeader) response.headers.append('Link', linkHeader)
@@ -220,7 +215,11 @@ async function handleRequest(request) {
     asyncHide && ['on', 'head > style', new AsyncHideHandler()],
     deferSelector && ['on', deferSelector, new AttrHandler('defer', true)],
     asyncSelector && ['on', asyncSelector, new AttrHandler('async', true)],
-    lazyloadSelector && ['on', lazyloadSelector, new AttrHandler('loading', 'lazy')],
+    lazyloadSelector && [
+      'on',
+      lazyloadSelector,
+      new AttrHandler('loading', 'lazy'),
+    ],
     removeElementSelector && [
       'on',
       `${removeElementSelector}`,
@@ -329,4 +328,49 @@ class AttrHandler {
   element(element) {
     element.setAttribute(this._attribute, this._value)
   }
+}
+
+// uuid returns an RFC 4122 compliant universally unique
+// identifier using the crypto API
+//
+// source: https://gist.github.com/bentranter/ed524091170137a72c1d54d641493c1f
+function uuid() {
+  // get sixteen unsigned 8 bit random values
+  const u = crypto.getRandomValues(new Uint8Array(16))
+
+  // set the version bit to v4
+  u[6] = (u[6] & 0x0f) | 0x40
+
+  // set the variant bit to "don't care" (yes, the RFC
+  // calls it that)
+  u[8] = (u[8] & 0xbf) | 0x80
+
+  // hex encode them and add the dashes
+  let uid = ''
+  uid += u[0].toString(16)
+  uid += u[1].toString(16)
+  uid += u[2].toString(16)
+  uid += u[3].toString(16)
+  uid += '-'
+
+  uid += u[4].toString(16)
+  uid += u[5].toString(16)
+  uid += '-'
+
+  uid += u[6].toString(16)
+  uid += u[7].toString(16)
+  uid += '-'
+
+  uid += u[8].toString(16)
+  uid += u[9].toString(16)
+  uid += '-'
+
+  uid += u[10].toString(16)
+  uid += u[11].toString(16)
+  uid += u[12].toString(16)
+  uid += u[13].toString(16)
+  uid += u[14].toString(16)
+  uid += u[15].toString(16)
+
+  return uid
 }
