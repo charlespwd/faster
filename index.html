@@ -133,7 +133,7 @@
                 type="text"
                 id="x-async"
                 name="x-async"
-                value="head > script:not([async]):not([defer])"
+                value="head > script[src]:not([async]):not([defer])"
               />
             </div>
           </div>
@@ -145,7 +145,7 @@
                 type="text"
                 id="x-defer"
                 name="x-defer"
-                value="head > script:not([async]):not([defer])"
+                value="head > script[src]:not([async]):not([defer])"
               />
             </div>
           </div>
@@ -258,7 +258,7 @@
             </p>
             <p>
               @example:<br />
-              <code>X-Async: head &gt; script:not([async]):not([defer])</code>
+              <code>X-Async: head &gt; script[src]:not([async]):not([defer])</code>
             </p>
           </li>
           <li>
@@ -269,7 +269,7 @@
             </p>
             <p>
               @example:<br />
-              <code>X-Defer: head &gt; script:not([async]):not([defer])</code>
+              <code>X-Defer: head &gt; script[src]:not([async]):not([defer])</code>
             </p>
           </li>
           <li>
