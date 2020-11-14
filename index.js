@@ -173,12 +173,9 @@ async function handleRequest(request) {
   const bypassTransform = config['x-bypass-transform']
   const acceptHeader = request.headers.get('accept')
 
-  const isHtmlRequest =
-    acceptHeader &&
-    (acceptHeader.includes('text/html') || acceptHeader.includes('*/*'))
   const shouldBypassTransform =
     bypassTransform && bypassTransform.indexOf('true') !== -1
-  const shouldTransform = isHtmlRequest && !shouldBypassTransform
+  const shouldTransform = !shouldBypassTransform
 
   const req = new Request(url, request)
   req.headers.delete('x-host')
@@ -205,6 +202,12 @@ async function handleRequest(request) {
   const appendToBodyContent = config['x-append-to-body']
 
   const response = await getResponse(req, shouldPush, shopId)
+
+  const isHtmlResponse = response.headers.get('content-type').includes('html');
+  if (!isHtmlResponse) {
+    console.log('Not an HTML response', req.url);
+    return response;
+  }
 
   // Add the link header
   if (linkHeader) response.headers.append('Link', linkHeader)
