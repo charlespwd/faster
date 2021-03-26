@@ -207,7 +207,7 @@
           </div>
           <textarea id="wpt-script" disabled rows="7"></textarea>
           <input type="button" id="copy" value="📋 Copy To Clipboard" />
-          <input type="button" id="debug-button" value="Test run (30s)" />
+          <a id="preview" href="/" target="_blank">Preview</a>
         </form>
       </section>
       <section>
@@ -258,7 +258,9 @@
             </p>
             <p>
               @example:<br />
-              <code>X-Async: head &gt; script[src]:not([async]):not([defer])</code>
+              <code
+                >X-Async: head &gt; script[src]:not([async]):not([defer])</code
+              >
             </p>
           </li>
           <li>
@@ -269,7 +271,9 @@
             </p>
             <p>
               @example:<br />
-              <code>X-Defer: head &gt; script[src]:not([async]):not([defer])</code>
+              <code
+                >X-Defer: head &gt; script[src]:not([async]):not([defer])</code
+              >
             </p>
           </li>
           <li>
@@ -344,7 +348,10 @@
           </li>
         </ul>
       </section>
-      <footer>by <a href="//twitter.com/cpclermont">@cpclermont</a> | <a href="https://github.com/charlespwd/faster">source</a></footer>
+      <footer>
+        by <a href="//twitter.com/cpclermont">@cpclermont</a> |
+        <a href="https://github.com/charlespwd/faster">source</a>
+      </footer>
       <script>
         const area = document.getElementById('wpt-script')
         const inputs = [
@@ -447,45 +454,46 @@
           } catch (e) {}
         }
 
+        const updateUI = () => {
+          updateScript()
+          updateLink()
+        }
+
         const updateScript = () => {
           area.value = getScriptValue()
         }
 
         inputs.forEach((input) => {
-          input.addEventListener('input', updateScript)
+          input.addEventListener('input', updateUI)
         })
 
-        updateScript()
+        updateUI()
 
-        document
-          .getElementById('debug-button')
-          .addEventListener('click', function tryItOutFor30Seconds() {
-            const headers = Object.keys(elements)
+        function updateLink() {
+          const link = document.getElementById('preview')
+          const target = new URL(elements.url.value)
+          const url = new URL(window.location)
+          if (url.host.match(/127\.0\.0\.1/)) {
+            url.host = '127.0.0.1:8787'
+          }
+
+          url.search =
+            '?' +
+            Object.keys(elements)
               .filter((x) => /^x-/.test(x))
               .map(getHeaderKeyValue)
               .filter(Boolean)
-            for (const [header, value] of headers) {
-              document.cookie = `${header}=${encodeURIComponent(
-                value,
-              )};path=/;max-age=30`
-            }
-            const url = new URL(elements.url.value)
-            document.cookie = `x-host=${encodeURIComponent(
-              url.hostname,
-            )};path=/;max-age=30`
-
-            if (/127\.0\.0\.1/.test(location.hostname)) {
-              location.href = 'http://127.0.0.1:8787'
-            } else {
-              location.reload()
-            }
-          })
+              .concat([['x-host', target.hostname]])
+              .map(([k, v]) => [k, encodeURIComponent(v)].join('='))
+              .join('&')
+          link.href = url.toString()
+        }
 
         document
           .getElementById('copy')
           .addEventListener('click', function copyScriptToClipboard() {
-            const scriptText = getScriptValue();
-            navigator.clipboard.writeText(scriptText);
+            const scriptText = getScriptValue()
+            navigator.clipboard.writeText(scriptText)
           })
       </script>
     </main>

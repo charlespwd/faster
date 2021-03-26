@@ -61,6 +61,10 @@ async function proxyFetch(qs, realRequest) {
   const proxyRequestUrl = odp.replace(/^\/\//, 'https://')
   const request = new Request(proxyRequestUrl, realRequest)
   if (compression) request.headers.set('Accept-Encoding', compression)
+  request.headers.delete('x-host')
+  request.headers.delete('x-forwarded-proto')
+  request.headers.delete('cf-visitor')
+  request.headers.delete('cf-workers-preview-token')
 
   const response = await fetch(proxyRequestUrl, {
     ...request,
@@ -153,7 +157,7 @@ async function handleRequest(request) {
     'x-append-to-head',
     'x-append-to-body',
   ]
-    .map((k) => [k, request.headers.get(k) || cookies[k]])
+    .map((k) => [k, request.headers.get(k) || cookies[k] || qs[k]])
     .reduce((acc, [k, v]) => {
       acc[k] = v
       return acc
@@ -240,7 +244,7 @@ async function handleRequest(request) {
     ],
     domains && [
       'on',
-      'script[src],link[href][rel=stylesheet],link[href][rel=preload],link[href][rel*=icon],[src],[data-srcset],[data-src]',
+      'script[src],link[href][rel=stylesheet],link[href][rel=preload],link[href][rel*=icon],[src],[data-srcset],[data-src],[data-bgset]',
       new OnDomainHandler(domains, url.hostname, compression),
     ],
     domains && [
@@ -302,7 +306,7 @@ class OnDomainHandler {
   }
 
   element(element) {
-    const attrs = ['href', 'src', 'srcset', 'data-srcset', 'data-src'].filter(
+    const attrs = ['href', 'src', 'srcset', 'data-srcset', 'data-src', 'data-bgset'].filter(
       element.getAttribute.bind(element),
     )
     for (const attr of attrs) {

@@ -5,8 +5,7 @@
   "description": "A web worker to make websites fast",
   "main": "index.js",
   "scripts": {
-    "curl": "scripts/curl-production",
-    "curl:local": "scripts/curl-local"
+    "request": "scripts/request"
   },
   "author": "Charles-P. Clermont <charles@cpclermont.com>",
   "license": "MIT",

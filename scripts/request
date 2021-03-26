@@ -4,7 +4,6 @@ host="${SITE}"
 curl -s \
   -H "x-host: $host" \
   -H 'accept: text/html' \
-  -H 'x-link: <cdn.shopify.com>; rel=preload' \
-  -H 'x-push: true' \
+  -H 'x-on-domain: *' \
   "$@" \
-  http://127.0.0.1:8787
+  "$ROOT_URL"
