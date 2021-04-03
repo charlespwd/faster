@@ -133,7 +133,6 @@ async function handleRequest(request) {
   const shouldOnDomainProxy = !!qs.odp
   if (shouldOnDomainProxy) {
     return proxyFetch(qs, request)
-    return response
   }
 
   const cookies = (request.headers.get('cookie') || '')
@@ -193,15 +192,15 @@ async function handleRequest(request) {
   }
 
   const linkHeader = config['x-link']
-  const asyncSelector = config['x-async']
-  const deferSelector = config['x-defer']
+  const asyncSelector = config['x-async']?.replace(/\+/g, ' ')
+  const deferSelector = config['x-defer']?.replace(/\+/g, ' ')
   const asyncHide = config['x-no-async-hide'] === 'true'
   const shouldPush = config['x-push'] === 'true'
   const shopId = config['x-shop-id']
   const compression = config['x-compression']
-  const domains = config['x-on-domain']
-  const lazyloadSelector = config['x-lazyload']
-  const removeElementSelector = config['x-remove-element']
+  const domains = config['x-on-domain']?.replace(/\+/g, ' ')
+  const lazyloadSelector = config['x-lazyload']?.replace(/\+/g, ' ')
+  const removeElementSelector = config['x-remove-element']?.replace(/\+/g, ' ')
   const appendToHeadContent = config['x-append-to-head']
   const appendToBodyContent = config['x-append-to-body']
 
